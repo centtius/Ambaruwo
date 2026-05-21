@@ -9,13 +9,77 @@ let currentVrm = null;
 const clock = new THREE.Clock();
 
 // ===============================
+// VISIBILITY CONTROL
+// Smooth fade canvas + deteksi lengkap
+// ===============================
+let targetOpacity = 0;
+let canvasOpacity = 0;
+let lastDetectedTime = 0;
+
+const HIDE_DELAY = 700;
+const FADE_SPEED = 0.08;
+
+function isPersonDetected(results) {
+    return !!(
+        results &&
+        (
+            results.faceLandmarks ||
+            results.poseLandmarks ||
+            results.poseWorldLandmarks ||
+            results.leftHandLandmarks ||
+            results.rightHandLandmarks
+        )
+    );
+}
+
+function updateAvatarFade() {
+    if (!currentVrm) return;
+
+    if (targetOpacity > 0) {
+        currentVrm.scene.visible = true;
+    }
+
+    canvasOpacity += (targetOpacity - canvasOpacity) * FADE_SPEED;
+
+    if (canvasOpacity < 0.01) canvasOpacity = 0;
+    if (canvasOpacity > 0.99) canvasOpacity = 1;
+
+    canvas.style.opacity = canvasOpacity.toString();
+
+    if (targetOpacity === 0 && canvasOpacity <= 0.01) {
+        currentVrm.scene.visible = false;
+    }
+}
+
+function setDebugText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+// ===============================
 // THREE.JS SETUP
 // ===============================
 const videoElement = document.getElementById('webcam');
 
-const canvas = document.createElement('canvas');
-canvas.id = 'canvas3d';
-document.body.appendChild(canvas);
+// FIX: pakai canvas yang sudah ada kalau ada, kalau belum ada buat baru
+let canvas = document.getElementById('canvas3d');
+
+if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'canvas3d';
+    document.body.appendChild(canvas);
+}
+
+Object.assign(canvas.style, {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    width: '100vw',
+    height: '100vh',
+    zIndex: '2',
+    opacity: '0',
+    pointerEvents: 'none'
+});
 
 const renderer = new THREE.WebGLRenderer({
     canvas: canvas,
@@ -63,15 +127,24 @@ loader.load(
         scene.add(vrm.scene);
 
         vrm.scene.rotation.y = Math.PI;
-        vrm.scene.position.y = -1;
+        vrm.scene.position.y = -1.2;
+
+        // Awal disembunyikan, tapi bukan pakai opacity material
+        // Jadi mata/model tidak rusak
+        vrm.scene.visible = false;
+        canvas.style.opacity = "0";
+        targetOpacity = 0;
+        canvasOpacity = 0;
 
         // Idle arm pose
         const rightArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
         const leftArm  = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
+
         if (rightArm) rightArm.rotation.z = -1.2;
         if (leftArm)  leftArm.rotation.z  =  1.2;
 
         currentVrm = vrm;
+
         console.log("Avatar berhasil dimuat!");
         startTracking();
     },
@@ -90,6 +163,7 @@ loader.load(
 // ===============================
 function applyRotation(bone, x, y, z, lerpFactor = 0.3) {
     if (!bone) return;
+
     bone.rotation.x += (x - bone.rotation.x) * lerpFactor;
     bone.rotation.y += (y - bone.rotation.y) * lerpFactor;
     bone.rotation.z += (z - bone.rotation.z) * lerpFactor;
@@ -189,61 +263,68 @@ const animateVRM = (vrm, results) => {
         // Fallback idle pose
         const rightArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
         const leftArm  = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
+
         if (rightArm) applyRotation(rightArm, 0, 0, -1.2);
         if (leftArm)  applyRotation(leftArm,  0, 0,  1.2);
     }
 
     // ===============================
-    // HAND TRACKING — FIX: pakai Quaternion + slerp
+    // RIGHT HAND TRACKING
     // ===============================
     if (results.rightHandLandmarks) {
 
         const rightHandRig = window.Kalidokit.Hand.solve(
-        results.rightHandLandmarks,
-        "Right"
-    );
+            results.rightHandLandmarks,
+            "Right"
+        );
 
-    // DEBUG: cek nilai actual
-    if (rightHandRig) {
-        console.log("RightWrist:", rightHandRig.RightWrist);
-        console.log("RightIndexProximal:", rightHandRig.RightIndexProximal);
+        if (rightHandRig) {
 
-        const wrist = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
-        if (wrist && rightHandRig.RightWrist) {
-            wrist.rotation.x += (rightHandRig.RightWrist.x - wrist.rotation.x) * 0.3;
-            wrist.rotation.y += (rightHandRig.RightWrist.y - wrist.rotation.y) * 0.3;
-            wrist.rotation.z += (rightHandRig.RightWrist.z - wrist.rotation.z) * 0.3;
-        }
+            const wrist = vrm.humanoid.getNormalizedBoneNode("rightHand");
 
-        const fingerMapRight = {
-            rightThumbMetacarpal:    rightHandRig.RightThumbProximal,
-            rightThumbProximal:      rightHandRig.RightThumbIntermediate,
-            rightThumbDistal:        rightHandRig.RightThumbDistal,
-            rightIndexProximal:      rightHandRig.RightIndexProximal,
-            rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
-            rightIndexDistal:        rightHandRig.RightIndexDistal,
-            rightMiddleProximal:     rightHandRig.RightMiddleProximal,
-            rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
-            rightMiddleDistal:       rightHandRig.RightMiddleDistal,
-            rightRingProximal:       rightHandRig.RightRingProximal,
-            rightRingIntermediate:   rightHandRig.RightRingIntermediate,
-            rightRingDistal:         rightHandRig.RightRingDistal,
-            rightLittleProximal:     rightHandRig.RightLittleProximal,
-            rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
-            rightLittleDistal:       rightHandRig.RightLittleDistal,
-        };
+            if (wrist && rightHandRig.RightWrist) {
+                applyRotation(
+                    wrist,
+                    rightHandRig.RightWrist.x,
+                    rightHandRig.RightWrist.y,
+                    rightHandRig.RightWrist.z
+                );
+            }
 
-        for (const [boneName, rot] of Object.entries(fingerMapRight)) {
-            if (!rot) continue;
-            const bone = currentVrm.humanoid.getNormalizedBoneNode(boneName);
-            if (!bone) continue;
-            bone.rotation.x += (rot.x - bone.rotation.x) * 0.3;
-            bone.rotation.y += (rot.y - bone.rotation.y) * 0.3;
-            bone.rotation.z += (rot.z - bone.rotation.z) * 0.3;
+            const fingerMapRight = {
+                rightThumbMetacarpal:    rightHandRig.RightThumbProximal,
+                rightThumbProximal:      rightHandRig.RightThumbIntermediate,
+                rightThumbDistal:        rightHandRig.RightThumbDistal,
+                rightIndexProximal:      rightHandRig.RightIndexProximal,
+                rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
+                rightIndexDistal:        rightHandRig.RightIndexDistal,
+                rightMiddleProximal:     rightHandRig.RightMiddleProximal,
+                rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
+                rightMiddleDistal:       rightHandRig.RightMiddleDistal,
+                rightRingProximal:       rightHandRig.RightRingProximal,
+                rightRingIntermediate:   rightHandRig.RightRingIntermediate,
+                rightRingDistal:         rightHandRig.RightRingDistal,
+                rightLittleProximal:     rightHandRig.RightLittleProximal,
+                rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
+                rightLittleDistal:       rightHandRig.RightLittleDistal,
+            };
+
+            for (const [boneName, rot] of Object.entries(fingerMapRight)) {
+                if (!rot) continue;
+
+                applyRotation(
+                    vrm.humanoid.getNormalizedBoneNode(boneName),
+                    rot.x,
+                    rot.y,
+                    rot.z
+                );
+            }
         }
     }
-    }
 
+    // ===============================
+    // LEFT HAND TRACKING
+    // ===============================
     if (results.leftHandLandmarks) {
 
         const leftHandRig = window.Kalidokit.Hand.solve(
@@ -253,15 +334,17 @@ const animateVRM = (vrm, results) => {
 
         if (leftHandRig) {
 
-            // Wrist / pergelangan tangan
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("leftHand"),
-                leftHandRig.LeftWrist.x,
-                leftHandRig.LeftWrist.y,
-                leftHandRig.LeftWrist.z
-            );
+            const wrist = vrm.humanoid.getNormalizedBoneNode("leftHand");
 
-            // Jari-jari tangan kiri
+            if (wrist && leftHandRig.LeftWrist) {
+                applyRotation(
+                    wrist,
+                    leftHandRig.LeftWrist.x,
+                    leftHandRig.LeftWrist.y,
+                    leftHandRig.LeftWrist.z
+                );
+            }
+
             const fingerMapLeft = {
                 leftThumbMetacarpal:    leftHandRig.LeftThumbProximal,
                 leftThumbProximal:      leftHandRig.LeftThumbIntermediate,
@@ -282,29 +365,26 @@ const animateVRM = (vrm, results) => {
 
             for (const [boneName, rot] of Object.entries(fingerMapLeft)) {
                 if (!rot) continue;
+
                 applyRotation(
                     vrm.humanoid.getNormalizedBoneNode(boneName),
-                    rot.x, rot.y, rot.z
+                    rot.x,
+                    rot.y,
+                    rot.z
                 );
             }
         }
     }
-    // CATATAN: vrm.update() dipindah ke render loop di bawah
 };
 
 // ===============================
-// RENDER LOOP — FIX: vrm.update di sini
+// RENDER LOOP
 // ===============================
 function animate() {
     requestAnimationFrame(animate);
 
-    // TES SEMENTARA: paksa tangan kanan bergerak naik turun
     if (currentVrm) {
-        const t = Date.now() / 1000;
-        const rightHand = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
-        if (rightHand) {
-            rightHand.rotation.z = Math.sin(t) * 0.5; // harusnya goyang
-        }
+        updateAvatarFade();
         currentVrm.update(clock.getDelta());
     }
 
@@ -318,7 +398,10 @@ animate();
 // ===============================
 function startTracking() {
 
-    if (!window.Holistic || !window.Camera) return;
+    if (!window.Holistic || !window.Camera) {
+        console.error("MediaPipe Holistic atau Camera Utils belum ter-load.");
+        return;
+    }
 
     const holistic = new window.Holistic({
         locateFile: (file) => {
@@ -327,7 +410,7 @@ function startTracking() {
     });
 
     holistic.setOptions({
-        modelComplexity: 2,          // Dinaikkan dari 0 → 1 agar tangan lebih akurat
+        modelComplexity: 2,
         smoothLandmarks: true,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
@@ -335,12 +418,30 @@ function startTracking() {
     });
 
     holistic.onResults((results) => {
-        document.getElementById('dbg-face').textContent  = results.faceLandmarks        ? '✅' : '❌';
-        document.getElementById('dbg-right').textContent = results.rightHandLandmarks   ? '✅' : '❌';
-        document.getElementById('dbg-left').textContent  = results.leftHandLandmarks    ? '✅' : '❌';
-        document.getElementById('dbg-pose').textContent  = results.poseWorldLandmarks   ? '✅' : '❌';
 
-        animateVRM(currentVrm, results);
+        // Debug UI kiri atas
+        setDebugText('dbg-face',  results.faceLandmarks      ? '✅' : '❌');
+        setDebugText('dbg-right', results.rightHandLandmarks ? '✅' : '❌');
+        setDebugText('dbg-left',  results.leftHandLandmarks  ? '✅' : '❌');
+        setDebugText('dbg-pose',  results.poseWorldLandmarks ? '✅' : '❌');
+
+        const detected = isPersonDetected(results);
+
+        if (currentVrm) {
+            if (detected) {
+                lastDetectedTime = performance.now();
+                targetOpacity = 1;
+                currentVrm.scene.visible = true;
+
+                animateVRM(currentVrm, results);
+            } else {
+                const elapsed = performance.now() - lastDetectedTime;
+
+                if (elapsed > HIDE_DELAY) {
+                    targetOpacity = 0;
+                }
+            }
+        }
     });
 
     const cameraUtils = new window.Camera(videoElement, {
@@ -360,20 +461,23 @@ function startTracking() {
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
 });
 
 // ===============================
 // AI + SPEECH
 // ===============================
-const btnMic    = document.getElementById('btn-mic');
+const btnMic     = document.getElementById('btn-mic');
 const statusText = document.getElementById('status-text');
 const chatText   = document.getElementById('chat-text');
 
 // =====================================
 // OPENAI API KEY
+// Isi key di sini kalau mau fitur AI aktif
 // =====================================
-const OPENAI_API_KEY = "";
+window.OPENAI_API_KEY = "";
 
 // ===============================
 // SPEECH RECOGNITION
@@ -383,7 +487,7 @@ const SpeechRecognition =
     window.webkitSpeechRecognition;
 
 if (!SpeechRecognition) {
-    chatText.innerText = "Browser tidak mendukung mikrofon.";
+    if (chatText) chatText.innerText = "Browser tidak mendukung mikrofon.";
 } else {
 
     const recognition = new SpeechRecognition();
@@ -393,12 +497,16 @@ if (!SpeechRecognition) {
     // ===============================
     // MIC BUTTON CLICK
     // ===============================
-    btnMic.addEventListener('click', () => {
-        recognition.start();
-        statusText.innerText = "Status: Mendengarkan...";
-        btnMic.style.backgroundColor = "#ff9f43";
-        btnMic.innerText = "👂";
-    });
+    if (btnMic) {
+        btnMic.addEventListener('click', () => {
+            recognition.start();
+
+            if (statusText) statusText.innerText = "Status: Mendengarkan...";
+
+            btnMic.style.backgroundColor = "#ff9f43";
+            btnMic.innerText = "👂";
+        });
+    }
 
     // ===============================
     // USER SPEAKS
@@ -406,16 +514,23 @@ if (!SpeechRecognition) {
     recognition.onresult = async (event) => {
 
         const pesanAnda = event.results[0][0].transcript;
-        chatText.innerText = "Anda: " + pesanAnda;
-        statusText.innerText = "Status: Berpikir...";
-        btnMic.style.backgroundColor = "#1dd1a1";
-        btnMic.innerText = "🧠";
+
+        if (chatText) chatText.innerText = "Anda: " + pesanAnda;
+        if (statusText) statusText.innerText = "Status: Berpikir...";
+
+        if (btnMic) {
+            btnMic.style.backgroundColor = "#1dd1a1";
+            btnMic.innerText = "🧠";
+        }
 
         const balasanAI = await tanyaAI(pesanAnda);
 
-        chatText.innerText = "ARIA: " + balasanAI;
-        statusText.innerText = "Status: Berbicara...";
-        btnMic.innerText = "🗣️";
+        if (chatText) chatText.innerText = "ARIA: " + balasanAI;
+        if (statusText) statusText.innerText = "Status: Berbicara...";
+
+        if (btnMic) {
+            btnMic.innerText = "🗣️";
+        }
 
         ucapkanBalasan(balasanAI);
     };
@@ -424,20 +539,25 @@ if (!SpeechRecognition) {
     // ERROR
     // ===============================
     recognition.onerror = (event) => {
-        statusText.innerText = "Error mikrofon: " + event.error;
-        btnMic.style.backgroundColor = "#ff4757";
-        btnMic.innerText = "🎙️";
+        if (statusText) statusText.innerText = "Error mikrofon: " + event.error;
+
+        if (btnMic) {
+            btnMic.style.backgroundColor = "#ff4757";
+            btnMic.innerText = "🎙️";
+        }
     };
 }
 
 // ===============================
 // OPENAI CHAT FUNCTION
-// FIX: kondisi pengecekan API key diperbaiki
 // ===============================
 async function tanyaAI(pesan) {
 
-    // FIX: hanya cek kosong atau placeholder, bukan nilai key itu sendiri
-    if (!window.OPENAI_API_KEY || window.OPENAI_API_KEY.trim() === "" || window.OPENAI_API_KEY.includes("MASUKKAN_API")) {
+    if (
+        !window.OPENAI_API_KEY ||
+        window.OPENAI_API_KEY.trim() === "" ||
+        window.OPENAI_API_KEY.includes("MASUKKAN_API")
+    ) {
         return "Masukkan API Key OpenAI terlebih dahulu.";
     }
 
@@ -496,9 +616,12 @@ function ucapkanBalasan(teks) {
     ucapan.pitch = 1.2;
 
     ucapan.onend = () => {
-        statusText.innerText = "Status: Menunggu...";
-        btnMic.style.backgroundColor = "#ff4757";
-        btnMic.innerText = "🎙️";
+        if (statusText) statusText.innerText = "Status: Menunggu...";
+
+        if (btnMic) {
+            btnMic.style.backgroundColor = "#ff4757";
+            btnMic.innerText = "🎙️";
+        }
     };
 
     window.speechSynthesis.speak(ucapan);
