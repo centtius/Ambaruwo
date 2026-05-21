@@ -1,50 +1,85 @@
 <html>
-    <head>
-        <title>AR Hologram</title>
-        <style>
-            body { margin: 0; overflow: hidden; background-color: black; }
-            #webcam {
-                position: absolute; top: 0; left: 0;
-                width: 100vw; height: 100vh;
-                object-fit: cover; z-index: 1;
-                transform: scaleX(-1);
-                opacity: 0; /* INI KUNCINYA: Menyembunyikan video wajah asli Anda */
-            }
-            #canvas3d {
-                position: absolute; top: 0; left: 0;
-                width: 100vw; height: 100vh; z-index: 2;
-            }
-        </style>
-        
-        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/kalidokit@1.1.5/dist/kalidokit.umd.js" crossorigin="anonymous"></script>
-    </head>
-    <body>
-        <video id="webcam" autoplay playsinline></video>
+  <head>
+    <title>AR Hologram</title>
+    <link rel="stylesheet" href="style.css" />
 
-        <div id="ui-container" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; background: rgba(0, 0, 0, 0.7); padding: 15px 25px; border-radius: 15px; display: flex; align-items: center; gap: 15px; width: 80%; max-width: 600px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-        
-            <button id="btn-mic" style="background-color: #ff4757; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 10px #ff4757;">
-                🎙️
-            </button>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/kalidokit@1.1.5/dist/kalidokit.umd.js"
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <body>
+    <video id="webcam" autoplay playsinline></video>
 
-            <div style="flex-grow: 1; color: white; font-family: sans-serif;">
-                <p id="status-text" style="margin: 0; font-size: 12px; color: #a4b0be;">Status: Menunggu...</p>
-                <p id="chat-text" style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold;">Tekan tombol mic untuk mulai bicara!</p>
-            </div>
-            
-        </div>
-    
-        <script type="importmap">
-            {
-                "imports": {
-                    "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
-                    "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
-                    "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.0/lib/three-vrm.module.js"
-                }
-            }
-        </script>
-        <script type="module" src="script.js"></script>
-    </body>
+    <div
+      id="ui-container"
+      style="
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px 25px;
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        width: 80%;
+        max-width: 600px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      "
+    >
+      <button
+        id="btn-mic"
+        style="
+          background-color: #ff4757;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          font-size: 24px;
+          cursor: pointer;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          box-shadow: 0 0 10px #ff4757;
+        "
+      >
+        🎙️
+      </button>
+
+      <div style="flex-grow: 1; color: white; font-family: sans-serif">
+        <p id="status-text" style="margin: 0; font-size: 12px; color: #a4b0be">
+          Status: Menunggu...
+        </p>
+        <p
+          id="chat-text"
+          style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold"
+        >
+          Tekan tombol mic untuk mulai bicara!
+        </p>
+      </div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+          "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.0/lib/three-vrm.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="script.js"></script>
+  </body>
 </html>
