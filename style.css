@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: black;
+}
+#webcam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  z-index: 1;
+  transform: scaleX(-1);
+  opacity: 0; /* INI KUNCINYA: Menyembunyikan video wajah asli Anda */
+}
+#canvas3d {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2;
+}
