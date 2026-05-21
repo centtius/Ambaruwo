@@ -56,10 +56,14 @@ loader.load(
 
     (gltf) => {
         const vrm = gltf.userData.vrm;
+
+        console.log("VRM Version:", vrm.meta?.metaVersion);
+        console.log("Bones:", Object.keys(vrm.humanoid.humanBones));
+
         scene.add(vrm.scene);
 
         vrm.scene.rotation.y = Math.PI;
-        vrm.scene.position.y = -1.2;
+        vrm.scene.position.y = -1;
 
         // Idle arm pose
         const rightArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
@@ -86,10 +90,9 @@ loader.load(
 // ===============================
 function applyRotation(bone, x, y, z, lerpFactor = 0.3) {
     if (!bone) return;
-    const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(x, y, z)
-    );
-    bone.quaternion.slerp(targetQuat, lerpFactor);
+    bone.rotation.x += (x - bone.rotation.x) * lerpFactor;
+    bone.rotation.y += (y - bone.rotation.y) * lerpFactor;
+    bone.rotation.z += (z - bone.rotation.z) * lerpFactor;
 }
 
 // ===============================
@@ -196,47 +199,49 @@ const animateVRM = (vrm, results) => {
     if (results.rightHandLandmarks) {
 
         const rightHandRig = window.Kalidokit.Hand.solve(
-            results.rightHandLandmarks,
-            "Right"
-        );
+        results.rightHandLandmarks,
+        "Right"
+    );
 
-        if (rightHandRig) {
+    // DEBUG: cek nilai actual
+    if (rightHandRig) {
+        console.log("RightWrist:", rightHandRig.RightWrist);
+        console.log("RightIndexProximal:", rightHandRig.RightIndexProximal);
 
-            // Wrist / pergelangan tangan
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("rightHand"),
-                rightHandRig.RightWrist.x,
-                rightHandRig.RightWrist.y,
-                rightHandRig.RightWrist.z
-            );
-
-            // Jari-jari tangan kanan
-            const fingerMapRight = {
-                rightThumbProximal:      rightHandRig.RightThumbProximal,
-                rightThumbIntermediate:  rightHandRig.RightThumbIntermediate,
-                rightThumbDistal:        rightHandRig.RightThumbDistal,
-                rightIndexProximal:      rightHandRig.RightIndexProximal,
-                rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
-                rightIndexDistal:        rightHandRig.RightIndexDistal,
-                rightMiddleProximal:     rightHandRig.RightMiddleProximal,
-                rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
-                rightMiddleDistal:       rightHandRig.RightMiddleDistal,
-                rightRingProximal:       rightHandRig.RightRingProximal,
-                rightRingIntermediate:   rightHandRig.RightRingIntermediate,
-                rightRingDistal:         rightHandRig.RightRingDistal,
-                rightLittleProximal:     rightHandRig.RightLittleProximal,
-                rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
-                rightLittleDistal:       rightHandRig.RightLittleDistal,
-            };
-
-            for (const [boneName, rot] of Object.entries(fingerMapRight)) {
-                if (!rot) continue;
-                applyRotation(
-                    vrm.humanoid.getNormalizedBoneNode(boneName),
-                    rot.x, rot.y, rot.z
-                );
-            }
+        const wrist = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
+        if (wrist && rightHandRig.RightWrist) {
+            wrist.rotation.x += (rightHandRig.RightWrist.x - wrist.rotation.x) * 0.3;
+            wrist.rotation.y += (rightHandRig.RightWrist.y - wrist.rotation.y) * 0.3;
+            wrist.rotation.z += (rightHandRig.RightWrist.z - wrist.rotation.z) * 0.3;
         }
+
+        const fingerMapRight = {
+            rightThumbMetacarpal:    rightHandRig.RightThumbProximal,
+            rightThumbProximal:      rightHandRig.RightThumbIntermediate,
+            rightThumbDistal:        rightHandRig.RightThumbDistal,
+            rightIndexProximal:      rightHandRig.RightIndexProximal,
+            rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
+            rightIndexDistal:        rightHandRig.RightIndexDistal,
+            rightMiddleProximal:     rightHandRig.RightMiddleProximal,
+            rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
+            rightMiddleDistal:       rightHandRig.RightMiddleDistal,
+            rightRingProximal:       rightHandRig.RightRingProximal,
+            rightRingIntermediate:   rightHandRig.RightRingIntermediate,
+            rightRingDistal:         rightHandRig.RightRingDistal,
+            rightLittleProximal:     rightHandRig.RightLittleProximal,
+            rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
+            rightLittleDistal:       rightHandRig.RightLittleDistal,
+        };
+
+        for (const [boneName, rot] of Object.entries(fingerMapRight)) {
+            if (!rot) continue;
+            const bone = currentVrm.humanoid.getNormalizedBoneNode(boneName);
+            if (!bone) continue;
+            bone.rotation.x += (rot.x - bone.rotation.x) * 0.3;
+            bone.rotation.y += (rot.y - bone.rotation.y) * 0.3;
+            bone.rotation.z += (rot.z - bone.rotation.z) * 0.3;
+        }
+    }
     }
 
     if (results.leftHandLandmarks) {
@@ -258,8 +263,8 @@ const animateVRM = (vrm, results) => {
 
             // Jari-jari tangan kiri
             const fingerMapLeft = {
-                leftThumbProximal:      leftHandRig.LeftThumbProximal,
-                leftThumbIntermediate:  leftHandRig.LeftThumbIntermediate,
+                leftThumbMetacarpal:    leftHandRig.LeftThumbProximal,
+                leftThumbProximal:      leftHandRig.LeftThumbIntermediate,
                 leftThumbDistal:        leftHandRig.LeftThumbDistal,
                 leftIndexProximal:      leftHandRig.LeftIndexProximal,
                 leftIndexIntermediate:  leftHandRig.LeftIndexIntermediate,
@@ -293,8 +298,13 @@ const animateVRM = (vrm, results) => {
 function animate() {
     requestAnimationFrame(animate);
 
-    // Update VRM di render loop agar delta time konsisten
+    // TES SEMENTARA: paksa tangan kanan bergerak naik turun
     if (currentVrm) {
+        const t = Date.now() / 1000;
+        const rightHand = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
+        if (rightHand) {
+            rightHand.rotation.z = Math.sin(t) * 0.5; // harusnya goyang
+        }
         currentVrm.update(clock.getDelta());
     }
 
@@ -317,7 +327,7 @@ function startTracking() {
     });
 
     holistic.setOptions({
-        modelComplexity: 1,          // Dinaikkan dari 0 → 1 agar tangan lebih akurat
+        modelComplexity: 2,          // Dinaikkan dari 0 → 1 agar tangan lebih akurat
         smoothLandmarks: true,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
@@ -325,6 +335,11 @@ function startTracking() {
     });
 
     holistic.onResults((results) => {
+        document.getElementById('dbg-face').textContent  = results.faceLandmarks        ? '✅' : '❌';
+        document.getElementById('dbg-right').textContent = results.rightHandLandmarks   ? '✅' : '❌';
+        document.getElementById('dbg-left').textContent  = results.leftHandLandmarks    ? '✅' : '❌';
+        document.getElementById('dbg-pose').textContent  = results.poseWorldLandmarks   ? '✅' : '❌';
+
         animateVRM(currentVrm, results);
     });
 
@@ -358,7 +373,7 @@ const chatText   = document.getElementById('chat-text');
 // =====================================
 // OPENAI API KEY
 // =====================================
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;;
+const OPENAI_API_KEY = "";
 
 // ===============================
 // SPEECH RECOGNITION
@@ -422,7 +437,7 @@ if (!SpeechRecognition) {
 async function tanyaAI(pesan) {
 
     // FIX: hanya cek kosong atau placeholder, bukan nilai key itu sendiri
-    if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === "" || OPENAI_API_KEY.includes("MASUKKAN_API")) {
+    if (!window.OPENAI_API_KEY || window.OPENAI_API_KEY.trim() === "" || window.OPENAI_API_KEY.includes("MASUKKAN_API")) {
         return "Masukkan API Key OpenAI terlebih dahulu.";
     }
 
@@ -433,7 +448,7 @@ async function tanyaAI(pesan) {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${OPENAI_API_KEY}`
+                    "Authorization": `Bearer ${window.OPENAI_API_KEY}`
                 },
                 body: JSON.stringify({
                     model: "gpt-4o-mini",
