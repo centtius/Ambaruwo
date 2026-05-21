@@ -63,7 +63,7 @@ loader.load(
         scene.add(vrm.scene);
 
         vrm.scene.rotation.y = Math.PI;
-        vrm.scene.position.y = -1;
+        vrm.scene.position.y = -1.2;
 
         // Idle arm pose
         const rightArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
@@ -99,41 +99,37 @@ function applyRotation(bone, x, y, z, lerpFactor = 0.3) {
 // ANIMATE VRM
 // ===============================
 const animateVRM = (vrm, results) => {
-
     if (!vrm || !results || !window.Kalidokit) return;
 
+    // Helper khusus VRM 1.0
+    function rigBone(boneName, rot, lerpFactor = 0.3) {
+        if (!rot) return;
+        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+        if (!bone) return;
+        bone.rotation.x += (rot.x - bone.rotation.x) * lerpFactor;
+        bone.rotation.y += (rot.y - bone.rotation.y) * lerpFactor;
+        bone.rotation.z += (rot.z - bone.rotation.z) * lerpFactor;
+    }
+
     // ===============================
-    // FACE TRACKING
+    // FACE
     // ===============================
     if (results.faceLandmarks) {
-
         const faceRig = window.Kalidokit.Face.solve(
             results.faceLandmarks,
             { runtime: "mediapipe", video: videoElement }
         );
-
         if (faceRig) {
-
-            const headNode = vrm.humanoid.getNormalizedBoneNode("head");
-            const neckNode = vrm.humanoid.getNormalizedBoneNode("neck");
-
-            if (neckNode) {
-                applyRotation(
-                    neckNode,
-                    faceRig.head.x * 0.5,
-                    faceRig.head.y * 0.5,
-                    faceRig.head.z * 0.5
-                );
-            }
-
-            if (headNode) {
-                applyRotation(
-                    headNode,
-                    faceRig.head.x * 0.5,
-                    faceRig.head.y * 0.5,
-                    faceRig.head.z * 0.5
-                );
-            }
+            rigBone("neck", {
+                x:  faceRig.head.x * 0.5,
+                y: -faceRig.head.y * 0.5,  // negate Y untuk VRM 1.0
+                z: -faceRig.head.z * 0.5   // negate Z untuk VRM 1.0
+            });
+            rigBone("head", {
+                x:  faceRig.head.x * 0.5,
+                y: -faceRig.head.y * 0.5,
+                z: -faceRig.head.z * 0.5
+            });
 
             if (vrm.expressionManager) {
                 vrm.expressionManager.setValue("aa",         faceRig.mouth.shape.A);
@@ -144,10 +140,9 @@ const animateVRM = (vrm, results) => {
     }
 
     // ===============================
-    // BODY TRACKING
+    // POSE / LENGAN — Fix VRM 1.0
     // ===============================
     if (results.poseWorldLandmarks) {
-
         const poseRig = window.Kalidokit.Pose.solve(
             results.poseWorldLandmarks,
             results.poseLandmarks,
@@ -155,113 +150,102 @@ const animateVRM = (vrm, results) => {
         );
 
         if (poseRig) {
+            // Negate Y & Z karena model di-flip Math.PI dan VRM 1.0
+            rigBone("rightUpperArm", {
+                x:  poseRig.RightUpperArm.x,
+                y: -poseRig.RightUpperArm.y,
+                z: -poseRig.RightUpperArm.z
+            });
+            rigBone("rightLowerArm", {
+                x:  poseRig.RightLowerArm.x,
+                y: -poseRig.RightLowerArm.y,
+                z: -poseRig.RightLowerArm.z
+            });
+            rigBone("leftUpperArm", {
+                x:  poseRig.LeftUpperArm.x,
+                y: -poseRig.LeftUpperArm.y,
+                z: -poseRig.LeftUpperArm.z
+            });
+            rigBone("leftLowerArm", {
+                x:  poseRig.LeftLowerArm.x,
+                y: -poseRig.LeftLowerArm.y,
+                z: -poseRig.LeftLowerArm.z
+            });
 
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("rightUpperArm"),
-                poseRig.RightUpperArm.x,
-                poseRig.RightUpperArm.y,
-                poseRig.RightUpperArm.z
-            );
-
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("rightLowerArm"),
-                poseRig.RightLowerArm.x,
-                poseRig.RightLowerArm.y,
-                poseRig.RightLowerArm.z
-            );
-
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("leftUpperArm"),
-                poseRig.LeftUpperArm.x,
-                poseRig.LeftUpperArm.y,
-                poseRig.LeftUpperArm.z
-            );
-
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("leftLowerArm"),
-                poseRig.LeftLowerArm.x,
-                poseRig.LeftLowerArm.y,
-                poseRig.LeftLowerArm.z
-            );
+            // Spine & chest biar gerakan badan ikut
+            rigBone("spine", {
+                x:  poseRig.Spine?.x || 0,
+                y: -(poseRig.Spine?.y || 0),
+                z: -(poseRig.Spine?.z || 0)
+            });
         }
 
     } else {
-        // Fallback idle pose
-        const rightArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
-        const leftArm  = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
-        if (rightArm) applyRotation(rightArm, 0, 0, -1.2);
-        if (leftArm)  applyRotation(leftArm,  0, 0,  1.2);
+        // Idle
+        const rArm = vrm.humanoid.getNormalizedBoneNode("rightUpperArm");
+        const lArm = vrm.humanoid.getNormalizedBoneNode("leftUpperArm");
+        if (rArm) rArm.rotation.z += (-1.2 - rArm.rotation.z) * 0.1;
+        if (lArm) lArm.rotation.z += ( 1.2 - lArm.rotation.z) * 0.1;
     }
 
     // ===============================
-    // HAND TRACKING — FIX: pakai Quaternion + slerp
+    // TANGAN KANAN — Fix bengkok
     // ===============================
     if (results.rightHandLandmarks) {
-
         const rightHandRig = window.Kalidokit.Hand.solve(
-        results.rightHandLandmarks,
-        "Right"
-    );
-
-    // DEBUG: cek nilai actual
-    if (rightHandRig) {
-        console.log("RightWrist:", rightHandRig.RightWrist);
-        console.log("RightIndexProximal:", rightHandRig.RightIndexProximal);
-
-        const wrist = currentVrm.humanoid.getNormalizedBoneNode("rightHand");
-        if (wrist && rightHandRig.RightWrist) {
-            wrist.rotation.x += (rightHandRig.RightWrist.x - wrist.rotation.x) * 0.3;
-            wrist.rotation.y += (rightHandRig.RightWrist.y - wrist.rotation.y) * 0.3;
-            wrist.rotation.z += (rightHandRig.RightWrist.z - wrist.rotation.z) * 0.3;
-        }
-
-        const fingerMapRight = {
-            rightThumbMetacarpal:    rightHandRig.RightThumbProximal,
-            rightThumbProximal:      rightHandRig.RightThumbIntermediate,
-            rightThumbDistal:        rightHandRig.RightThumbDistal,
-            rightIndexProximal:      rightHandRig.RightIndexProximal,
-            rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
-            rightIndexDistal:        rightHandRig.RightIndexDistal,
-            rightMiddleProximal:     rightHandRig.RightMiddleProximal,
-            rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
-            rightMiddleDistal:       rightHandRig.RightMiddleDistal,
-            rightRingProximal:       rightHandRig.RightRingProximal,
-            rightRingIntermediate:   rightHandRig.RightRingIntermediate,
-            rightRingDistal:         rightHandRig.RightRingDistal,
-            rightLittleProximal:     rightHandRig.RightLittleProximal,
-            rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
-            rightLittleDistal:       rightHandRig.RightLittleDistal,
-        };
-
-        for (const [boneName, rot] of Object.entries(fingerMapRight)) {
-            if (!rot) continue;
-            const bone = currentVrm.humanoid.getNormalizedBoneNode(boneName);
-            if (!bone) continue;
-            bone.rotation.x += (rot.x - bone.rotation.x) * 0.3;
-            bone.rotation.y += (rot.y - bone.rotation.y) * 0.3;
-            bone.rotation.z += (rot.z - bone.rotation.z) * 0.3;
-        }
-    }
-    }
-
-    if (results.leftHandLandmarks) {
-
-        const leftHandRig = window.Kalidokit.Hand.solve(
-            results.leftHandLandmarks,
-            "Left"
+            results.rightHandLandmarks, "Right"
         );
+        if (rightHandRig) {
+            // Wrist
+            rigBone("rightHand", {
+                x: -rightHandRig.RightWrist.x,
+                y:  rightHandRig.RightWrist.y,
+                z:  rightHandRig.RightWrist.z
+            });
 
+            const fingerMapRight = {
+                rightThumbMetacarpal:    rightHandRig.RightThumbProximal,
+                rightThumbProximal:      rightHandRig.RightThumbIntermediate,
+                rightThumbDistal:        rightHandRig.RightThumbDistal,
+                rightIndexProximal:      rightHandRig.RightIndexProximal,
+                rightIndexIntermediate:  rightHandRig.RightIndexIntermediate,
+                rightIndexDistal:        rightHandRig.RightIndexDistal,
+                rightMiddleProximal:     rightHandRig.RightMiddleProximal,
+                rightMiddleIntermediate: rightHandRig.RightMiddleIntermediate,
+                rightMiddleDistal:       rightHandRig.RightMiddleDistal,
+                rightRingProximal:       rightHandRig.RightRingProximal,
+                rightRingIntermediate:   rightHandRig.RightRingIntermediate,
+                rightRingDistal:         rightHandRig.RightRingDistal,
+                rightLittleProximal:     rightHandRig.RightLittleProximal,
+                rightLittleIntermediate: rightHandRig.RightLittleIntermediate,
+                rightLittleDistal:       rightHandRig.RightLittleDistal,
+            };
+
+            for (const [boneName, rot] of Object.entries(fingerMapRight)) {
+                if (!rot) continue;
+                rigBone(boneName, {
+                    x:  rot.x,
+                    y: -rot.y,  // negate untuk VRM 1.0
+                    z: -rot.z   // negate untuk VRM 1.0
+                });
+            }
+        }
+    }
+
+    // ===============================
+    // TANGAN KIRI — Fix bengkok
+    // ===============================
+    if (results.leftHandLandmarks) {
+        const leftHandRig = window.Kalidokit.Hand.solve(
+            results.leftHandLandmarks, "Left"
+        );
         if (leftHandRig) {
+            rigBone("leftHand", {
+                x: -leftHandRig.LeftWrist.x,
+                y:  leftHandRig.LeftWrist.y,
+                z:  leftHandRig.LeftWrist.z
+            });
 
-            // Wrist / pergelangan tangan
-            applyRotation(
-                vrm.humanoid.getNormalizedBoneNode("leftHand"),
-                leftHandRig.LeftWrist.x,
-                leftHandRig.LeftWrist.y,
-                leftHandRig.LeftWrist.z
-            );
-
-            // Jari-jari tangan kiri
             const fingerMapLeft = {
                 leftThumbMetacarpal:    leftHandRig.LeftThumbProximal,
                 leftThumbProximal:      leftHandRig.LeftThumbIntermediate,
@@ -282,14 +266,14 @@ const animateVRM = (vrm, results) => {
 
             for (const [boneName, rot] of Object.entries(fingerMapLeft)) {
                 if (!rot) continue;
-                applyRotation(
-                    vrm.humanoid.getNormalizedBoneNode(boneName),
-                    rot.x, rot.y, rot.z
-                );
+                rigBone(boneName, {
+                    x:  rot.x,
+                    y: -rot.y,
+                    z: -rot.z
+                });
             }
         }
     }
-    // CATATAN: vrm.update() dipindah ke render loop di bawah
 };
 
 // ===============================
